@@ -7,7 +7,7 @@
 int CLK = 10;
 int SIN = 9;
 int list[] = {2,3,4,5,6,7,8,9,10};
-char charat[256];
+char charat[] = "Testing";
 prog_uchar text[] PROGMEM  = "PART I    "
 "It is an ancient Mariner,    "
 "And he stoppeth one of three.    "
@@ -758,7 +758,7 @@ void setup() {
   while (pgm_read_byte_near(text + length) != 0) {
     length++;
   } 
-//  length = 1024;//strlen(charat);
+  //length = strlen(charat);
 }
 int calcatLim(int nr,int lim) {
   if (nr >= lim) {
@@ -795,6 +795,7 @@ void loop() {
         m2++;
       }
       byte fontX = pgm_read_byte_near(text + calcatLim(m2+counter,length)); 
+      //byte fontX = charat[calcatLim(m2+counter,length)];
       if (p2 == 5 || !CHECK_BIT(font[fontX-32][p2],x) ) {
         ON(SIN);
       } else {
@@ -803,7 +804,7 @@ void loop() {
       tick(0);
     }
     ON(list[x]);
-    delayMicroseconds(1500);
+    delayMicroseconds(1400);
     OFF(list[x]);
   }
 }
