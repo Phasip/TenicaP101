@@ -97,7 +97,10 @@ void shiftOutArray(uint8_t dataPin, uint8_t clockPin, uint8_t bitOrder, uint8_t 
 
 const byte CLK = 10;
 const byte SIN = 9;
-const byte list[] = {2,3,4,5,6,7,8,9,10};
+//Pins to use
+const byte list[] = {2,3,4,5,6,7,8,SIN,CLK};
+
+
 const byte listlen = 9;
 
 short length = 0;
