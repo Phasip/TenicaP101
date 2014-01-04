@@ -2,8 +2,8 @@
 #include <avr/io.h> 
 #include <avr/interrupt.h>
 
-#define DISPLAYORDER LSBFIRST
-#define CHECK_BIT(var,pos) ((var) & (1<<(pos)))
+#define DISPLAYORDER MSBFIRST
+
 #define V(var) var?LOW:HIGH
 #define ON(var) digitalWrite(var,LOW);
 #define OFF(var) digitalWrite(var,HIGH);
@@ -18,7 +18,9 @@
 #define BIT2 0x40
 #define BIT1 0x80
 #define ANY_BIT(valA,valB) ((!!(valA & valB)) ? 1 : 0)
-const char bits[8] = {BIT1, BIT2, BIT3, BIT4, BIT5, BIT6, BIT7, BIT8};
+const char bits[8] = {BIT8, BIT7, BIT6, BIT5, BIT4, BIT3, BIT2, BIT1};
+#define CHECK_BIT(var,pos) (!!((var) & bits[pos]))
+
 uint8_t data[7][12];
 //Rotate left, shift everything left and set the least significant bit to what the most significant bit was before
 #define rol(val) val = val << 1 | !!(val & 0x80);
@@ -28,10 +30,7 @@ uint8_t data[7][12];
 // the loop routine runs over and over again forever:
 byte charwidth = 5;
 byte spacing = 2;
-byte refreshPerStep = 1;
-byte stepcounter = 0;
 byte dir = 1;
-byte rotate = 1;
 byte disp[7][12];
 void init_timer() {
 	  cli();          // disable global interrupts
@@ -39,7 +38,7 @@ void init_timer() {
     TCCR1B = 0;     // same for TCCR1B
  
     // set compare match register to desired timer count:
-    OCR1A = 960;
+    OCR1A = 1000;
     // turn on CTC mode:
     TCCR1B |= (1 << WGM12);
     // Set CS10 and CS12 bits for 1024 prescaler:
@@ -141,12 +140,7 @@ const byte SIN = 9;
 const byte list[] = {2,3,4,5,6,7,8,9,10};
 const byte listlen = 9;
 
-char charat[] = "Testing";
-/*prog_uchar text[] PROGMEM  = "Annika 50            ";*/
 short length = 0;
-short counter = 0;
-short at = 0;
-byte partialCounter = 0;
 const byte font[][5] = {
 		{0x00,0x00,0x00,0x00,0x00},   //   0x20 32
 		{0x00,0x00,0x6f,0x00,0x00},   // ! 0x21 33
@@ -244,9 +238,8 @@ const byte font[][5] = {
 		{0x41,0x41,0x36,0x08,0x00},   // } 0x7d 125
 		{0x04,0x02,0x04,0x08,0x04},   // ~ 0x7e 126
 	};
-byte i = 0;
-byte j = 0;
-	void flashPin(byte pin, short length) {
+uint8_t i = 0;
+void flashPin(byte pin, short length) {
   digitalWrite(pin,LOW);
   delayMicroseconds(length);
   digitalWrite(pin,HIGH);
@@ -292,8 +285,34 @@ void tick(int d) {
   digitalWrite(CLK,LOW);
   digitalWrite(CLK,HIGH);
 }
-unsigned long *ptr;
-unsigned long *ptr2;
+char text[] = "Pasi says hello!   ";
+uint8_t charat = 0;
+uint8_t colat = 0;
+void loop() {
+	uint8_t i;
+	length = 18;
+	for (i = 0; i < 7; i++) {
+		shiftArray(MSBFIRST,i);
+	}
+	
+	for (i = 0; i < 7; i++) {
+		if (colat < charwidth) {
+			char f = font[text[charat]-32][colat];
+			data[i][0] |= CHECK_BIT(f,i);
+		}
+	}
+	
+	colat++;
+	if (colat >= charwidth+spacing-1) {
+		colat = 0;
+		charat++;
+	}
+	if (charat >= length) {
+		charat = 0;
+	}
+}
+/*
+ //Sin curve loop, fast 
 double radians = 0;
 double increase = 80.0f/180.0f;
 void loop() {
@@ -301,10 +320,11 @@ void loop() {
 	for (i = 0; i < 7; i++) 
 	{
 		shiftArray(MSBFIRST,i);
-		delay(3);
+		
 	}
+	delay(9);
 	data[(int)(sin(radians)*4.0f)+3][0] |= 1;
-}
+}*/
 uint8_t clock = 0;
 ISR (TIMER1_COMPA_vect)
 {
