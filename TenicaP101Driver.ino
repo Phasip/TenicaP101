@@ -3,7 +3,8 @@
 #include <avr/interrupt.h>
 
 #define DISPLAYORDER MSBFIRST
-
+#define FRAMES 10
+#define DELAY 10
 #define V(var) var?LOW:HIGH
 #define ON(var) digitalWrite(var,LOW);
 #define OFF(var) digitalWrite(var,HIGH);
@@ -21,6 +22,8 @@
 const char bits[8] = {BIT8, BIT7, BIT6, BIT5, BIT4, BIT3, BIT2, BIT1};
 #define CHECK_BIT(var,pos) (!!((var) & bits[pos]))
 
+uint8_t framedone[FRAMES];
+uint8_t frames[FRAMES][7][12];
 uint8_t data[7][12];
 //Rotate left, shift everything left and set the least significant bit to what the most significant bit was before
 #define rol(val) val = val << 1 | !!(val & 0x80);
@@ -30,51 +33,8 @@ uint8_t data[7][12];
 // the loop routine runs over and over again forever:
 byte charwidth = 5;
 byte spacing = 2;
-byte dir = 1;
 byte disp[7][12];
-void init_timer() {
-	  cli();          // disable global interrupts
-    TCCR1A = 0;     // set entire TCCR1A register to 0
-    TCCR1B = 0;     // same for TCCR1B
- 
-    // set compare match register to desired timer count:
-    OCR1A = 1000;
-    // turn on CTC mode:
-    TCCR1B |= (1 << WGM12);
-    // Set CS10 and CS12 bits for 1024 prescaler:
-    TCCR1B |= (1 << CS10);
-    TCCR1B |= (1 << CS11);
-    // enable timer compare interrupt:
-    TIMSK1 |= (1 << OCIE1A);
-    sei();          // enable global interrupts
-	/* Working
-	cli();             // disable global interrupts
-    TCCR1A = 0;        // set entire TCCR1A register to 0
-    TCCR1B = 0;
- 
-    // enable Timer1 overflow interrupt:
-    TIMSK1 = (1 << TOIE1);
-    // Set CS10 bit so timer runs at clock speed:
-    TCCR1B |= (1 << CS10);
-    // enable global interrupts:
-    sei();*/
-    // enable interrupts
 
-    // enable interrupts
-
-	/*Working
-	OCR2A = 0xFF;
-    TCCR2A |= (1 << WGM21);
-    // Set to CTC Mode
-    TIMSK2 |= (1 << OCIE2A);
-    //Set interrupt on compare match
-    TCCR2B |= (1 << CS21);
-    // set prescaler to 64 and starts PWM
-    sei();
-    // enable interrupts*/
-
-
-}
 
 void shiftOutRol(uint8_t dataPin, uint8_t clockPin, uint8_t bitOrder, uint8_t val)
 {
@@ -123,7 +83,7 @@ void shiftArray(uint8_t bitOrder, uint8_t row) {
 		
 	}
 }
-void shiftOutArray(uint8_t dataPin, uint8_t clockPin, uint8_t bitOrder, uint8_t row) {
+void shiftOutArray(uint8_t dataPin, uint8_t clockPin, uint8_t bitOrder, uint8_t row,uint8_t (*data)[12]) {
 	if (bitOrder == LSBFIRST) {
 		for (uint8_t i = 0; i < 12; i++) {
 			shiftOutRol(dataPin,clockPin,bitOrder,data[row][i]);
@@ -141,6 +101,7 @@ const byte list[] = {2,3,4,5,6,7,8,9,10};
 const byte listlen = 9;
 
 short length = 0;
+//Array taken from http://playground.arduino.cc/Code/PCD8544
 const byte font[][5] = {
 		{0x00,0x00,0x00,0x00,0x00},   //   0x20 32
 		{0x00,0x00,0x6f,0x00,0x00},   // ! 0x21 33
@@ -239,56 +200,43 @@ const byte font[][5] = {
 		{0x04,0x02,0x04,0x08,0x04},   // ~ 0x7e 126
 	};
 uint8_t i = 0;
-void flashPin(byte pin, short length) {
-  digitalWrite(pin,LOW);
-  delayMicroseconds(length);
-  digitalWrite(pin,HIGH);
-  
+
+/*
+  Initializes a timer, see ISR (TIMER1_COMPA_vect)
+*/
+void init_timer() {
+	  cli();          // disable global interrupts
+    TCCR1A = 0;     // set entire TCCR1A register to 0
+    TCCR1B = 0;     // same for TCCR1B
+ 
+    // set compare match register to desired timer count:
+    OCR1A = 1000;
+    // turn on CTC mode:
+    TCCR1B |= (1 << WGM12);
+    // Set CS10 and CS12 bits for 1024 prescaler:
+    TCCR1B |= (1 << CS10);
+    TCCR1B |= (1 << CS11);
+    // enable timer compare interrupt:
+    TIMSK1 |= (1 << OCIE1A);
+    sei();          // enable global interrupts
 }
 
-void showDisplay(uint8_t order) {
-    for (byte row = 0; row < 7; row++) { 
-      byte place = 0;
-      shiftOutArray(SIN,CLK,order,row); 
-      flashPin(list[row],500);
-    }
-}
-void showDisplay2() {
-	showDisplay(LSBFIRST);
-}
-// the setup routine runs once when you press reset:
+//Initialize for displaying stuff
 void setup() {
+  //Clear the values of pins.
   for ( i = 0; i < listlen; i++) {
     pinMode(list[i], OUTPUT);
      OFF(list[i]);
   }
-  	uint8_t x = 0;
-	data[0][11] = 0xFF;
-	data[0][10] = 0xFF;
-	data[2][0] = 0xFF;
-	init_timer();
-}
-int calcatLim(int nr,int lim) {
-  if (nr >= lim) {
-    return calcatLim(nr-lim,lim);
-  }
-  if (nr < 0 ) {
-    return calcatLim(lim+nr,lim);
-  }
-  return nr;
+  //Start our frame drawer timer.
+  init_timer();
 }
 
-//shiftOut(SIN, CLK,  MSBFIRST // LSBFIRST, value)
 
-
-void tick(int d) {
-  digitalWrite(CLK,LOW);
-  digitalWrite(CLK,HIGH);
-}
 char text[] = "Pasi says hello!   ";
 uint8_t charat = 0;
 uint8_t colat = 0;
-void loop() {
+void drawText() {
 	uint8_t i;
 	length = 18;
 	for (i = 0; i < 7; i++) {
@@ -301,7 +249,6 @@ void loop() {
 			data[i][0] |= CHECK_BIT(f,i);
 		}
 	}
-	
 	colat++;
 	if (colat >= charwidth+spacing-1) {
 		colat = 0;
@@ -311,28 +258,93 @@ void loop() {
 		charat = 0;
 	}
 }
+
 /*
- //Sin curve loop, fast 
+Main program loop, calls a function such as drawSinCruve or drawText,
+these modify the data variable to be the next frame. after this it
+copies the new frame into the frames array, after which it marks
+the frame as done.
+
+Also, if no frame is free it waits.
+*/
+uint8_t loopframeAt = 0;
+void loop() {
+        uint8_t j;
+        
+        //No frames free, wait.
+        if (framedone[loopframeAt] == 1) {
+          delay(5);
+          return;
+        }
+        //Call drawer here
+        drawText();
+        //Copy frame to frame queue.
+        for (i = 0; i < 7; i++) {
+          for (j = 0; j < 12; j++) {
+            frames[loopframeAt][i][j] = data[i][j];
+          }
+        }
+        //mark frame as done and delay
+        framedone[loopframeAt] = 1;
+        delay(DELAY);
+        loopframeAt++;
+        if (loopframeAt >= FRAMES) {
+          loopframeAt = 0;
+        }
+}
+
+//Sin curve loop, fast 
 double radians = 0;
 double increase = 80.0f/180.0f;
-void loop() {
+void drawSinCurve() {
+
 	radians+=increase;
 	for (i = 0; i < 7; i++) 
 	{
 		shiftArray(MSBFIRST,i);
 		
 	}
-	delay(9);
 	data[(int)(sin(radians)*4.0f)+3][0] |= 1;
-}*/
+}
+
+/*
+  Ugly timer that handles the drawing of a frame, each tick one row of the display is updated,
+  if there's no new frame we continue drawing the old frame.
+*/
 uint8_t clock = 0;
+uint8_t frameAt = 0;
+uint8_t lastFrame = -1;
 ISR (TIMER1_COMPA_vect)
 {
+        boolean hasNewFrame = framedone[frameAt] == 1;
+        boolean hasOldFrame = lastFrame != -1;
+        
+        if (!hasNewFrame && !hasOldFrame)
+          return;
 	digitalWrite(list[clock],HIGH);
+
 	clock++;
+        //If we have updated all rows reset clock and try to advance to the next frame.
 	if (clock > 6) {
-		clock = 0;
+	  clock = 0;
+          if (hasNewFrame) {
+            if (hasOldFrame)
+              framedone[lastFrame] = 0; //Mark frame as viewed.
+              
+            lastFrame = frameAt;
+            frameAt++;
+            if (frameAt >= FRAMES) {
+              frameAt = 0;
+            }
+          }
 	}
-	shiftOutArray(SIN,CLK,DISPLAYORDER,clock);
+
+
+        if (framedone[frameAt] == 1)
+        	shiftOutArray(SIN,CLK,DISPLAYORDER,clock,frames[frameAt]);
+        else if (lastFrame != -1)
+        	shiftOutArray(SIN,CLK,DISPLAYORDER,clock,frames[lastFrame]);
+        
 	digitalWrite(list[clock],LOW);
+
 }
